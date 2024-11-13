@@ -1,4 +1,3 @@
-#que en la funcion invitar, se le pueda responder apretando una reaccion afirmativa o negativa, entones el bot ve la reaccion y hace lo q deba
 import os
 from dotenv import load_dotenv
 import discord
@@ -7,10 +6,9 @@ from discord.ext import commands
 import mysql.connector
 
 load_dotenv()
-# Configura el token de tu bot
 TOKEN = os.getenv("TOKEN")
 
-# Define las intenciones que necesitas (puedes ajustarlas según tus necesidades)
+#tenemos las variables en un archivo .env en la misma carpeta que este archivo .py
 conexion = mysql.connector.connect(host="mysql_db", user= os.getenv("MYSQL_USER"), password= os.getenv("MYSQL_PASSWORD"), database=os.getenv("MYSQL_DATABASE"))
 cursor = conexion.cursor()
 intents = discord.Intents.default()
@@ -19,13 +17,9 @@ intents.message_content = True
 intents.members = True
 intents.reactions = True
 
-
-# Crea una instancia del bot con intenciones
+#Instanciamos el bot, el comando help lo reescribiremos mas adelante
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.remove_command('help')
-#lo que quiero es que compruebe la primera fila de la tabla de relacion grupo miembro, en este caso lo q esta haciendo es buscar la primera coinciencia de mi id, por eso siempre me encuentra
-#esta consulta debe ver si eres lider de algun grupo, y retornar en id de ese grupo
-#crear una funcion solo para comprobar si es consulta es lider o si es miembro
 
 #para el grupo seleccionado, muestra el primer miembro
 consultaEsLider= """SELECT Grupos_Miembros.id_miembro
@@ -34,6 +28,7 @@ consultaEsLider= """SELECT Grupos_Miembros.id_miembro
             Where Grupos_Miembros.id_grupo = %(idGrupo)s
             ORDER BY fecha_unido ASC
             LIMIT 1;"""
+
 #para el grupo seleccionado, busca el miembro exacto
 consultaEsMiembro = """SELECT Grupos_Miembros.id_miembro
             FROM Grupos_Miembros
@@ -41,9 +36,10 @@ consultaEsMiembro = """SELECT Grupos_Miembros.id_miembro
             Where Grupos_Miembros.id_grupo = %(idGrupo)s
             ORDER BY fecha_unido ASC;"""
 
+#El rol que queremos que tenga permiso para crear su grupo
 def verificado_required():
     async def predicate(ctx):
-        verificado_role = discord.utils.get(ctx.guild.roles, id= int(os.getenv("VERIFIED_ROL_ID"))) #server oficial
+        verificado_role = discord.utils.get(ctx.guild.roles, id= int(os.getenv("VERIFIED_ROL_ID")))
         if verificado_role in ctx.author.roles:
             return True
         else:
@@ -72,7 +68,6 @@ def esMiembro(ctx,grupo: discord.Role):
     return False
 
 def esLider(ctx):
-    #primero obtener una lista de los ids de todos los grupos, y ir uno a uno haciendo la consulataEslider, cuando devuelva que si es cuando retornamos ese id de grupo, si no es none
     roles = ctx.guild.roles
     for rol in roles:
         cursor.execute(consultaEsLider,{'idGrupo':str(rol.id)})
@@ -117,10 +112,10 @@ async def crear_grupo(ctx,*nombres):
                 #Ahora modificamos el orden de la categorias
                 categorias = ctx.guild.categories
 
-                #la ultima categoria la movemos a la segunda pos, despues del lobby del server
+                #la ultima categoria (la que acabamos de crear) la movemos a la posicion que queramos variando la variable position
                 await categorias[len(categorias)-1].edit(position=1)# no hace falta mover todas manualmente, al cambiar la pos de una desplaza el resto automatico
 
-                #asignacion de permisos
+                #Asignacion de permisos
                 verificado = discord.utils.get(ctx.guild.roles, name='verificado')
                 permisoVerificado = discord.PermissionOverwrite()
                 permisoVerificado.view_channel = False
@@ -129,7 +124,7 @@ async def crear_grupo(ctx,*nombres):
                 permisoVerificado.send_messages = False
                 permisoVerificado.mention_everyone = False
 
-                # Establecer permisos en la categoría para el nuevo rol
+                #Establecer permisos en la categoría para el nuevo rol
                 permiso = discord.PermissionOverwrite()
                 permiso.add_reactions = True
                 permiso.attach_files = True
@@ -157,9 +152,8 @@ async def crear_grupo(ctx,*nombres):
                 await nueva_categoria.set_permissions(nuevo_rol, overwrite=permiso)
                 await nueva_categoria.set_permissions(verificado, overwrite=permisoVerificado)
                 await ctx.send(f'Se ha creado el grupo "{nombre_grupo}". Ahora puedes invitar gente con !invitar @nombreUsuario')
-
+                # Registramos todo en la base de datos
                 if resultado is None:
-                #crear nickname del canal de voz
                     cursor.execute("INSERT INTO Grupos (id_grupo, nombre_grupo) VALUES (%(id)s, %(nombre)s);",{'id': str(nuevo_rol.id),'nombre': str(nuevo_rol.name)})
                     cursor.execute("INSERT INTO Miembros (id_miembro, nombre_miembro) VALUES (%(id)s, %(nombre)s);",{'id': str(ctx.author.id),'nombre': str(ctx.author.name)}) #esta linea sobra
                     cursor.execute("INSERT INTO Grupos_Miembros (id_grupo, id_miembro) VALUES (%(idGrupo)s, %(idMiembro)s);",{'idGrupo': str(nuevo_rol.id),'idMiembro': str(ctx.author.id)})
@@ -173,14 +167,12 @@ async def crear_grupo(ctx,*nombres):
                 await ctx.send("Ese grupo ya existe, prueba de nuevo con otro nombre")
 
         except Exception as e:
-           # await borrar_grupo(ctx,nuevo_rol)
             await ctx.send(f'Ha habido un error al crear el grupo, habla con un admin')
     else:
-        await ctx.send('Ya eres lider de un grupo, no puedes tener mas de un grupo.')#añadir que le ponga el nombre del grupo del cual es lider
+        await ctx.send('Ya eres lider de un grupo, no puedes tener mas de un grupo.')#Falta añadir que te diga de que grupo supuestamente ya eres el lider
 
-
+#Si eres user, se llama a esta funcion sin argumentos, borra TU grupo, Si eres administrador del server, se le pasa como argumento la etiqueta del grupo (@Elgrupo)
 async def borrar_grupo(ctx, rol=None):
-    print("El usuario " + str(ctx.author.name) + " esta entrando a la funcion borrar grupo")
     async def borrar_categoria(ctx, rolName):
         categoria = discord.utils.get(ctx.guild.categories, name=rolName)
         if categoria is None:
@@ -201,9 +193,9 @@ async def borrar_grupo(ctx, rol=None):
             conexion.commit()
 
     if not ctx.author.guild_permissions.administrator:
-        print("no eres el dueño del server")
+        """print("no eres el dueño del server")
         rol = esLider(ctx)
-        print(rol)
+        print(rol)"""
         if rol is not None:
             await accionBorrado(rol)
             await ctx.send(f"Eliminaste tu grupo")
@@ -211,13 +203,11 @@ async def borrar_grupo(ctx, rol=None):
             await ctx.send(f"No eres propietario de ningun grupo")
 
     else:
-        print("si eres el dueño del server")
-        print(type(rol))
-        # si lo mando desde abandonar me lo pilla como instancia y entra al if, ya tenemos el objeto
+        """print("si eres administrador del server")
+        print(type(rol))"""
         if isinstance(rol, discord.Role):
             await accionBorrado(rol)
         else:
-            # si lo mando desde borrar grupo lo manda como string, le extraemos el id y obtenemos el objeto rol
             role_id = int(rol.strip("<@&>").strip())
             rol = discord.utils.get(ctx.guild.roles, id=role_id)
             await accionBorrado(rol)
@@ -234,7 +224,7 @@ async def cambiar_nombre_texto(ctx,*nombres):
             for canal in canales:
                 print(str(canal.type))
                 if str(canal.type) == "text":
-                # ver esto no esta pillando los nombres separados por espacios solo por guiones
+                # ver esto no esta pillando los nombres separados por espacios solo por guiones # No se si esto sigue siendo así y me da flojera mirarlo lol
                     for i in range(len(nombres) - 1, -1, -1):
                         nombreAntiguoArray = nombres[:i]
                         nombreAntiguo = '-'.join(nombreAntiguoArray)
@@ -259,7 +249,7 @@ async def cambiar_nombre_voz(ctx,*nombres):
         if categoria is not None:
             canales = categoria.channels
             for canal in canales:
-                #la logica aquí hace cosas muy extrañas hacer mas pruebas
+                #la logica aquí hace cosas muy extrañas hacer mas pruebas # No se si esto lo solucioné tampoco me acuerdo jeje
                 if str(canal.type) == "voice":
                     for i in range(len(nombres) - 1, -1, -1):
                         nombreAntiguoArray = nombres[:i]
@@ -383,9 +373,9 @@ async def cambiar_nombre_grupo(ctx,*nombres):
 async def saludo(ctx):
     await ctx.send(f'pa ti mi cola')
 
-#solo se puede invitar desde el canal privado si esta visible para todos, ver si se puede cambiar eso
+#solo se puede invitar desde canales publicos, buscar formas alternativas de invitar a tu grupo
 #si se invita a una misma persona varias veces en el mismo string se acumulan los mensajes en el md
-#que si los argumentos estan vacios te pregunte directo al MD
+#añadir comportamiento por si no se reciben argumentos
 @bot.command(name='invitar', aliases=['invite'])
 @verificado_required()
 @commands.cooldown(1, 2, commands.BucketType.default)
@@ -402,8 +392,6 @@ async def invitar(ctx,*usuarios: discord.Member):
                 await usuario.send(f"'{ctx.author.name}' te ha inviado a su grupo \n¿quieres unirte al grupo'{rol.name}'? escribe SI o NO")
                 def check(m):
                     return m.author == usuario and m.channel.type == discord.ChannelType.private
-
-
                 try:
                     respuesta = await bot.wait_for('message', check=check, timeout=1000)
                     #await ctx.send(f"Respuesta recibida: {respuesta.content}")
@@ -466,10 +454,6 @@ async def eliminar(ctx,*miembros: discord.Member):
     else:
         await ctx.send(f"No puedes eliminar miembros por que no eres el propietario del grupo")
 
-
-
-
-#cambiar el alias y ver si en ingles esta bien dicho abandom group
 @bot.command(name='abandonar', aliases=['leave'])
 @verificado_required()
 @commands.cooldown(1, 2, commands.BucketType.default)
@@ -498,6 +482,7 @@ async def abandonar(ctx, palabraGrupo,grupo: discord.Role): #para que usuarios n
     else:
         await ctx.send(f"Error al escribir el comando, mira !ayuda para mas información")
 
+#Para que todo el mundo pueda ver que tienes canales de voz y texto de tu grupo, pero no pueden entrar ni leer su contenido(creo).
 #@bot.command(name='ocultar', aliases=['hide'])
 @verificado_required()
 async def ocultar(ctx):
@@ -528,6 +513,8 @@ async def mostrar(ctx):
 
 
 #funciones gestoras
+#Para que funcione como lo hacen el resto de bots, las llamadas se hacen en lenguaje natural y estas funciones llaman a la funcion que toque
+
 @bot.command(name='crear', aliases=['create'])
 @verificado_required()
 @commands.cooldown(1, 2, commands.BucketType.default)
@@ -823,10 +810,9 @@ async def help(ctx, *args):
         embed.add_field(name="!cambiar nombre canal texto", value="Cambias el nombre de uno de tus canales de texto, especifica primero el nombre antiguo y luego el nombre nuevo, hazlo así: `!cambiar nombre canal texto` `nombre antiguo` `nombre nuevo`",inline=False)
         embed.add_field(name="!cambiar nombre canal voz", value="Cambias el nombre de uno de tus canales de voz, especifica primero el nombre antiguo y luego el nombre nuevo, hazlo así: `!cambiar nombre canal voz` `nombre antiguo` `nombre nuevo`", inline=False)
         await ctx.send(embed=embed)
-#sacar borrar categoria para poder llamarla yo manualmente y borrar categorias al toque, mejor si es por id
 
-#conseguir que los canales visibles de tu rol sean inleibles, no solo si no estabas dentro previamente (historial de mensajes)
+
+#conseguir que los canales visibles de tu rol sean inleibles, no solo si no estabas dentro previamente (historial de mensajes) #alomejor es mejor que esten ocultos para los que no sean miembros y ya está...
 #modificar el comando help para variante inglés
-#hacer lo de darte roles por escribir Rol tal tal tal
 
 bot.run(TOKEN)
