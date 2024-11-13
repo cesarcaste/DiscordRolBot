@@ -8,6 +8,7 @@ Este proyecto es un bot para servidores de Discord que permite a usuarios con un
 
 - Un servidor Linux
 - Docker instalado
+- Docker compose
 
 ### Pasos de Instalación
 
