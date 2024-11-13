@@ -24,7 +24,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     volumes:
       - ../mysql/data:/var/lib/mysql  
-      - ../mysql/astrobotSQL.sql:/docker-entrypoint-initdb.d/astrobotSQL.sql  
+      - ../mysql/initSQL.sql:/docker-entrypoint-initdb.d/initSQL.sql  
     ports:
       - "3307:3306" 
     cap_add:

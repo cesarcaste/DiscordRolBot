@@ -1,4 +1,4 @@
 docker/.env
-mysql/
+mysql/data
 python/src/.env
 python/src/.idea/
